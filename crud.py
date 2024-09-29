@@ -1,33 +1,52 @@
-from fastapi import FastAPI, Path
+from fastapi import FastAPI, Path, HTTPException
+from pydantic import BaseModel
 from typing import Annotated
+from typing import List
 
 app = FastAPI()
+users = []
 
-users = {'1': 'Имя: Example, возраст: 18'}
+
+class User(BaseModel):
+    id: int = None
+    username: str
+    age: int
 
 
 @app.get('/users')
-async def get_users() -> dict:
+async def get_users() -> List[User]:
     return users
 
 
 @app.post('/user/{username}/{age}')
 async def post_user(username: Annotated[str, Path(min_length=5, max_length=20, description='Enter username', example='UrbanUser')]
-                    , age: Annotated[int, Path(ge=18, le=120, description='Enter age', example='24')]) -> str:
-    user_id = str(len(users) + 1)
+                    , age: Annotated[int, Path(ge=18, le=120, description='Enter age', example='24')]) -> User:
+    next_id = len(users) + 1
     # user_id = str(int(max(users, key=int)) + 1)
-    users[user_id] = f"Имя: {username}, возраст: {age}"
-    return f"User {user_id} is registered"
+    user = User(id=next_id, username=username, age=age)
+    users.append(user)
+    return user
 
 
 @app.put('/user/{user_id}/{username}/{age}')
-async def update_user(user_id: str, username: Annotated[str, Path(min_length=5, max_length=20, description='Enter username', example='UrbanUser')]
-                      , age: Annotated[int, Path(ge=18, le=120, description='Enter age', example='24')]) -> str:
-    users[user_id] = f"Имя: {username}, возраст: {age}"
-    return f"The user {user_id} has been updated"
+async def update_user(user_id: int, username: Annotated[str, Path(min_length=5, max_length=20, description='Enter username', example='UrbanUser')]
+                      , age: Annotated[int, Path(ge=18, le=120, description='Enter age', example='24')]) -> User:
+    try:
+        for user in users:
+            if user.id == user_id:
+                user.username = username
+                user.age = age
+                return user
+    except ValueError:
+        raise HTTPException(status_code=404, detail='User was not found')
 
 
 @app.delete('/user/{user_id}')
-async def delete_user(user_id: str) -> str:
-    users.pop(user_id)
-    return f"The user {user_id} has been deleted"
+async def delete_user(user_id: int) -> None:
+    try:
+        for user in users:
+            if user.id == user_id:
+                return users.remove(user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail='User was not found')
+
